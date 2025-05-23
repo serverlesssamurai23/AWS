@@ -348,3 +348,327 @@ module.exports = router;
 Ensure `authRoutes` is correctly imported and used as shown in the `BackendSetupGuide.md` section 3.F. (It was already included in the template, this is just a reminder).
 
 This provides a basic but functional starting point for user authentication. Further enhancements would include more robust validation, password complexity rules, email verification, password reset functionality, and refresh tokens.
+---
+
+## 6. User Profile Management Endpoints (Conceptual)
+
+These endpoints allow authenticated users to manage their profile information. They build upon the existing authentication setup. Assumes `protect` middleware is used.
+
+**A. `backend/src/controllers/userController.js` (New File or merged with `authController.js`)**
+
+```javascript
+// const User = require('../models/User'); // Assuming User model has methods to update profile
+// const bcrypt = require('bcryptjs');
+// const jwt = require('jsonwebtoken'); // If email change requires re-issuing token or re-verification
+
+// exports.getMyProfile = async (req, res) => {
+//   try {
+//     // req.user.id is available from 'protect' middleware
+//     const user = await User.findById(req.user.id).select('-password_hash'); // Exclude password hash
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found.' });
+//     }
+//     res.json(user);
+//   } catch (error) {
+//     console.error('Get profile error:', error);
+//     res.status(500).json({ message: 'Server error while fetching profile.' });
+//   }
+// };
+
+// exports.updateMyProfile = async (req, res) => {
+//   try {
+//     const { firstName, lastName, email } = req.body;
+//     const userId = req.user.id;
+
+//     // Basic validation
+//     if (!firstName || !lastName || !email) {
+//       return res.status(400).json({ message: 'First name, last name, and email are required.' });
+//     }
+//     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+//        return res.status(400).json({ message: 'Invalid email format.' });
+//     }
+
+//     // Check if email is being changed and if it's already taken by another user
+//     const currentUser = await User.findById(userId);
+//     if (email !== currentUser.email) {
+//       const existingUserWithNewEmail = await User.findByEmail(email);
+//       if (existingUserWithNewEmail) {
+//         return res.status(400).json({ message: 'This email is already in use by another account.' });
+//       }
+//     }
+    
+//     const updatedUser = await User.updateProfile(userId, { firstName, lastName, email }); // Implement User.updateProfile
+//     // Exclude password hash from response
+//     const userResponse = { ...updatedUser.toObject() }; // Assuming Mongoose or similar ORM
+//     delete userResponse.password_hash;
+
+//     // If email was changed, potentially re-issue token or require email verification
+//     res.json({ message: 'Profile updated successfully.', user: userResponse });
+//   } catch (error) {
+//     console.error('Update profile error:', error);
+//     res.status(500).json({ message: 'Server error while updating profile.' });
+//   }
+// };
+
+// exports.changeMyPassword = async (req, res) => {
+//   try {
+//     const { currentPassword, newPassword, confirmNewPassword } = req.body;
+//     const userId = req.user.id;
+
+//     if (!currentPassword || !newPassword || !confirmNewPassword) {
+//       return res.status(400).json({ message: 'All password fields are required.' });
+//     }
+//     if (newPassword !== confirmNewPassword) {
+//       return res.status(400).json({ message: 'New passwords do not match.' });
+//     }
+//     if (newPassword.length < 6) { // Consistent with registration
+//       return res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+//     }
+
+//     const user = await User.findById(userId); // Fetches full user doc including password_hash
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found.' });
+//     }
+
+//     const isMatch = await User.comparePassword(currentPassword, user.password_hash);
+//     if (!isMatch) {
+//       return res.status(401).json({ message: 'Incorrect current password.' });
+//     }
+
+//     // Hash new password and save
+//     const salt = await bcrypt.genSalt(10);
+//     const newPasswordHash = await bcrypt.hash(newPassword, salt);
+//     await User.updatePassword(userId, newPasswordHash); // Implement User.updatePassword
+
+//     res.json({ message: 'Password changed successfully.' });
+//   } catch (error) {
+//     console.error('Change password error:', error);
+//     res.status(500).json({ message: 'Server error while changing password.' });
+//   }
+// };
+```
+**Note:** The above controller code is conceptual and commented out as it requires `User` model methods like `findById`, `updateProfile`, `updatePassword` which are not fully defined in `User.js` yet. This provides the API structure.
+
+**B. `backend/src/routes/userRoutes.js` (New File)**
+```javascript
+// const express = require('express');
+// const router = express.Router();
+// const userController = require('../controllers/userController'); // Assuming userController.js created
+// const { protect } = require('../middleware/authMiddleware');
+
+// // All routes protected
+// router.use(protect);
+
+// // @route   GET api/users/me/profile
+// // @desc    Get current user's profile
+// // @access  Private
+// router.get('/me/profile', userController.getMyProfile);
+
+// // @route   PUT api/users/me/profile
+// // @desc    Update current user's profile (name, email)
+// // @access  Private
+// router.put('/me/profile', userController.updateMyProfile);
+
+// // @route   PUT api/users/me/profile/password
+// // @desc    Change current user's password
+// // @access  Private
+// router.put('/me/profile/password', userController.changeMyPassword);
+
+// module.exports = router;
+```
+
+**C. Update `backend/src/routes/index.js`**
+   Add the new `userRoutes` to the main API router.
+```diff
+// ... other imports
+// const userRoutes = require('./userRoutes'); // Add this
+
+// ... other router.use() calls
+// router.use('/users', userRoutes); // Add this, e.g., paths like /api/users/me/profile
+```
+The above backend definitions are conceptual and marked as comments to indicate they are for documentation within the guide at this stage.
+
+---
+---
+
+## 7. User Address Management Endpoints (Conceptual)
+
+These endpoints allow authenticated users to manage their saved shipping/billing addresses.
+
+**A. Database Schema (Conceptual - New Table: `UserAddresses`)**
+   (This would typically be in `DatabaseSchema.md`, but for context here)
+```sql
+-- CREATE TABLE UserAddresses (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   user_id UUID NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+--   address_type VARCHAR(50) NOT NULL, -- 'shipping' or 'billing'
+--   full_name VARCHAR(255) NOT NULL,
+--   address_line1 VARCHAR(255) NOT NULL,
+--   address_line2 VARCHAR(255),
+--   city VARCHAR(100) NOT NULL,
+--   state VARCHAR(100) NOT NULL,
+--   zip_code VARCHAR(20) NOT NULL,
+--   country VARCHAR(100) NOT NULL,
+--   phone_number VARCHAR(50),
+--   is_default_shipping BOOLEAN DEFAULT FALSE,
+--   is_default_billing BOOLEAN DEFAULT FALSE,
+--   created_at TIMESTAMPZ DEFAULT CURRENT_TIMESTAMP,
+--   updated_at TIMESTAMPZ DEFAULT CURRENT_TIMESTAMP
+-- );
+-- CREATE INDEX idx_user_addresses_user_id ON UserAddresses(user_id);
+```
+
+**B. `backend/src/controllers/addressController.js` (New File - Conceptual)**
+```javascript
+// const UserAddress = require('../models/UserAddress'); // Assuming a model for UserAddresses table
+
+// exports.getAddresses = async (req, res) => { /* ...fetch all addresses for req.user.id ... */ };
+// exports.addAddress = async (req, res) => { /* ...add new address for req.user.id, validate req.body ... */ };
+// exports.updateAddress = async (req, res) => { /* ...update address where id = req.params.id and user_id = req.user.id ... */ };
+// exports.deleteAddress = async (req, res) => { /* ...delete address where id = req.params.id and user_id = req.user.id ... */ };
+// exports.setDefaultAddress = async (req, res) => { 
+//   /* ...set is_default_shipping/billing = true for req.params.id 
+//      and ensure other addresses for that user and type are set to false ... */ 
+// };
+```
+
+**C. `backend/src/routes/addressRoutes.js` (New File - Conceptual)**
+```javascript
+// const express = require('express');
+// const router = express.Router();
+// const addressController = require('../controllers/addressController');
+// const { protect } = require('../middleware/authMiddleware');
+
+// router.use(protect);
+
+// router.get('/', addressController.getAddresses);
+// router.post('/', addressController.addAddress);
+// router.put('/:id', addressController.updateAddress);
+// router.delete('/:id', addressController.deleteAddress);
+// router.put('/:id/default', addressController.setDefaultAddress); // e.g., ?type=shipping or in body
+
+// module.exports = router;
+```
+
+**D. Update `backend/src/routes/index.js` (Conceptual)**
+   Add the new `addressRoutes` to the main API router.
+```diff
+// ... other imports
+// const addressRoutes = require('./addressRoutes'); // Add this
+
+// ... other router.use() calls
+// router.use('/addresses', addressRoutes); // Add this, e.g., paths like /api/addresses
+```
+The above backend definitions are conceptual and marked as comments to indicate they are for documentation within the guide at this stage.
+
+---
+---
+
+## 8. Educational Content APIs (Conceptual)
+
+Endpoints for fetching educational articles.
+
+**A. `backend/src/controllers/educationController.js` (New File - Conceptual)**
+```javascript
+// const EducationalArticle = require('../models/EducationalArticle'); // Assuming a model
+// const EducationalArticleCategory = require('../models/EducationalArticleCategory');
+
+// exports.getArticles = async (req, res) => { /* Fetch all articles, paginated, filter by category? */ };
+// exports.getArticleBySlug = async (req, res) => { /* Fetch single article by slug */ };
+// exports.getArticleCategories = async (req, res) => { /* Fetch all article categories */ };
+```
+
+**B. `backend/src/routes/educationRoutes.js` (New File - Conceptual)**
+```javascript
+// const express = require('express');
+// const router = express.Router();
+// const educationController = require('../controllers/educationController');
+
+// router.get('/articles', educationController.getArticles);
+// router.get('/articles/:slug', educationController.getArticleBySlug);
+// router.get('/categories', educationController.getArticleCategories);
+// router.get('/categories/:categorySlug/articles', educationController.getArticles); // Filter by category
+
+// module.exports = router;
+```
+
+**C. Update `backend/src/routes/index.js` (Conceptual)**
+```diff
+// ... other imports
+// const educationRoutes = require('./educationRoutes'); // Add this
+
+// ... other router.use() calls
+// router.use('/education', educationRoutes); // Add this, e.g., /api/education/articles
+```
+The above backend definitions are conceptual and marked as comments.
+
+---
+---
+
+## 9. Admin Panel APIs (Conceptual)
+
+Endpoints for administrators to manage core site data like products, categories, and orders. These require robust authentication and authorization (e.g., checking for an 'admin' role on the user).
+
+**A. Admin Authentication/Authorization (Conceptual)**
+*   Admin users might be a separate user type or have a specific role (e.g., `role: 'admin'` in the `Users` table).
+*   A separate login route for admins (`/api/admin/login`) might be used, or the main login could issue tokens with role information.
+*   A middleware `isAdmin` would protect admin routes, checking `req.user.role === 'admin'`.
+
+**B. `backend/src/controllers/adminProductController.js` (New File - Conceptual)**
+```javascript
+// const Product = require('../models/Product'); // From main site
+// // const ProductVariant = require('../models/ProductVariant'); // If variants are handled separately
+
+// exports.createProduct = async (req, res) => { /* ...logic to create a new product and its variants. Validate req.body ... */ };
+// exports.updateProduct = async (req, res) => { /* ...logic to update product req.params.id and its variants ... */ };
+// exports.deleteProduct = async (req, res) => { /* ...logic to delete product req.params.id (soft or hard delete) ... */ };
+// // exports.getProducts = async (req, res) => { /* ...admin version of getProducts, may show inactive products ... */ };
+```
+
+**C. `backend/src/controllers/adminCategoryController.js` (New File - Conceptual)**
+```javascript
+// const ProductCategory = require('../models/Category'); // From main site
+
+// exports.createCategory = async (req, res) => { /* ...logic to create a new category. Validate req.body (name, slug, description) ... */ };
+// exports.updateCategory = async (req, res) => { /* ...logic to update category req.params.id ... */ };
+// exports.deleteCategory = async (req, res) => { /* ...logic to delete category req.params.id. Consider impact on products. ... */ };
+// // exports.getCategories = async (req, res) => { /* ...admin version of getCategories ... */ };
+```
+
+**D. `backend/src/routes/adminRoutes.js` (New File - Conceptual)**
+```javascript
+// const express = require('express');
+// const router = express.Router();
+// const adminProductController = require('../controllers/adminProductController');
+// const adminCategoryController = require('../controllers/adminCategoryController');
+// const { protect, isAdmin } = require('../middleware/authMiddleware'); // Assuming isAdmin middleware
+
+// router.use(protect, isAdmin); // Protect all admin routes
+
+// // Product Management
+// router.post('/products', adminProductController.createProduct);
+// router.put('/products/:id', adminProductController.updateProduct);
+// router.delete('/products/:id', adminProductController.deleteProduct);
+// // router.get('/products', adminProductController.getProducts); // Admin list view
+
+// // Category Management
+// router.post('/categories', adminCategoryController.createCategory);
+// router.put('/categories/:id', adminCategoryController.updateCategory);
+// router.delete('/categories/:id', adminCategoryController.deleteCategory);
+// // router.get('/categories', adminCategoryController.getCategories); // Admin list view
+
+// module.exports = router;
+```
+
+**E. Update `backend/src/routes/index.js` (Conceptual)**
+   Add the new `adminRoutes` to the main API router, likely prefixed.
+```diff
+// ... other imports
+// const adminRoutes = require('./adminRoutes'); // Add this
+
+// ... other router.use() calls
+// router.use('/admin', adminRoutes); // Add this, e.g., /api/admin/products
+```
+The above backend definitions are conceptual and marked as comments.
+
+---
